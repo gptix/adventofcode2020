@@ -8,14 +8,17 @@
   (let ((col-count (length (car tree-rows)))
 	(move-right right)
 	(move-down  down))
+;;    (print (length tree-rows))))
     
     (loop :for row :in tree-rows
+	  :for i from 1 to 5
 	  :with count = 0
 	  :with colindex = 0
 	  :with rowindex = 0
-	  :do (if (zerop (mod rowindex move-down))
+	  :do (format t "row: ~a -- col: ~a~%" rowindex colindex)
+	      (if (zerop (mod rowindex move-down))
 		  (incf count (tree-1-or-0 row colindex)))
-	      (incf rowindex move-down)
+	      (incf rowindex)
 	      (setf colindex (mod (incf colindex move-right) col-count))
 	  :finally (return count))))
 		   
