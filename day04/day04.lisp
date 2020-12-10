@@ -5,9 +5,8 @@
 (setf required-fields '("byr" "iyr" "eyr" "hgt" "hcl" "ecl" "pid"))
 (setf optional-field "cid")
 
-
-
 ;; Test data located below!
+
 
 
 ;;; Munge input file into data structure for main algo.
@@ -20,85 +19,72 @@
         (read-sequence string instream)
         string))))
 
-(defun records<-string (str)
+(defun text-recs<-string (str)
   "Splits a file (single string) on double newlines, into records."
   (cl-ppcre:split double-newline str))
 
-(defun kvps<-record (rec)
+
+
+;;; Munge data into pair-based records
+;;; text-record -> kv pairs as strings -> kv pairs as lists -> hash-table
+
+;;; Split text record into list of kv pairs as strings.
+(defun pair-strings<-text-record (rec)
   "Splits a record on whitespace, into key:value strings."
   (cl-ppcre:split "\\s+" rec))
 
-(defun list-of-kvps<-records (lor)
+(defun pair<-pair-string (pair-string)
+  "Split string like 'pid:123456789' into ('pid' '123456789')"
+  (cl-ppcre:split #\: pair-string))
+
+(defun pairs-record<-pair-strings (pair-strings)
   "Wrapper"
-  (mapcar #'kvps<-record lor))
+  (mapcar #'pair<-pair-string pair-strings))
 
-(defun pair<-kvpstring (kvpstring)
-  (cl-ppcre:split #\: kvpstring))
+(defun pairs-record<-text-record (textrecord)
+  (pairs-record<-pair-strings (pair-strings<-text-record textrecord)))
 
-(defun pairs<-kvpstrings (kvps)
-  "Wrapper."
-  (mapcar #'pair<-kvpstring kvps))
+(defun pairs-records<text-records (trs)
+  (mapcar #'pairs-record<text-record trs))
 
-(defun ht-entry<-pair (ht pair)
+(defun populate-hash-table (ht rec)
+  "Wrapper"
+  (mapcar (lambda (kv-pair) (ht-entry<-kv-pair ht kv-pair)) rec))
+  
+(defun ht-entry<-kv-pair (ht kv-pair)
   (destructuring-bind
       (k v)
-      pair
+      kv-pair
     (setf (gethash k ht) v)))
 
-(defun ht-entries<-pairs (ht pairs)
-  "Wrapper"
-  (mapcar (lambda (pair) (ht-entry<-pair ht pair)) pairs))
 
 
+;;; Validate
 
-
-
-;;; Used for part 1, which did not validate contents of fields
-  
-(defun k<-kvp (kvp)
-  "Splits the key off of a kv pair. For part one, we do not need the value."
-  (car (cl-ppcre:split ":" kvp)))
-
-(defun ks<-kvps (kvps)
-  "Wrapper."
-  (mapcar #'k<-kvp kvps))
-
-;; Function that munges a file into data for use by algorithm
-(defun list-of-ks<-file (filename)
-  "Input: file
-   Output: list of lists of keys"
-  (mapcar #'ks<-kvps (list-of-kvps<-records
-		      (records<-string
-		       (read-file filename)))))
-
-
-
-
-
-
-
-
-;;; Validate records
-
-(defun string-in-list-p (str lst)
-  "Helper function. Returns t if str is in list, otherwise nil."
-  (if (member-if (lambda (el) (string= el str)) lst) t))
-
-(defun all-required-fields-p (ks)
+(defun all-required-fields-p (ht)
   "Checks to see if all required keys are present."
   (loop :for rf :in required-fields
 	:with valid = t
 	:while valid
-	:do (setf valid (string-in-list-p rf ks))
+	:do (setf valid (if (gethash rf ht) t nil))
 	:finally (return valid)))
 
+(defun validate (field ht)
+  (let ((val (gethash field ht)))
+    (cond ((equal field "byr") (valid-byr-p val))
+	  ((equal field "iyr") (valid-iyr-p val))
+	  ((equal field "eyr") (valid-eyr-p val))
+	  ((equal field "hgt") (valid-hgt-p val))
+	  ((equal field "hcl") (valid-hcl-p val))
+	  ((equal field "ecl") (valid-ecl-p val))
+	  ((equal field "pid") (valid-pid-p val)))))
 
-;;; Apply algorithm to file.
-
-(defun valid-record-count<-filename (fn)
-  (count t (mapcar #'all-required-fields-p (list-of-ks<-file fn))))
-
-
+(defun validate-all (ht)
+  (loop :for field :in required-fields
+	:with valid = t
+	:while valid
+	:do (setf valid (validate field ht))
+	:finally (return valid)))
 
 ;;; Field validation
 
@@ -118,18 +104,11 @@
 (defun all-hex-p (str)
   (every #'identity (mapcar #'hex-numeral-p (coerce str 'list))))
 
-
-
-
 (defun in-range (number range)
   (<= (first range) number (second range)))
 
 (defun string-in-range (str range)
   (<= (first range) (parse-integer str) (second range)))
-
-
-
-
 
 (defun valid-year-string-p (str range)
   (and (all-decimals-p str)
@@ -169,17 +148,19 @@
 		(all-decimals number) ; validate that this is a decimal number
 		(let ((range (if (string= unit "cm") hgt-cm-range hgt-in-range))) ; select range to use
 
-		  (in-range (parse-integer number) range)))))) ; validate that number is in range
+		  (in-range (parse-integer number) range))))))) ; validate that number is in range
 
 
 ;; hcl (Hair Color) - a # followed by exactly six characters 0-9 or a-f. A hex number.
 (defun valid-hcl-p (str)
-  (and (= 6 (length str))
-       (all-hex-p str)))
+  (and (= 7 (length str))
+       (eq #\# (char str 0)) ; first char is #
+       (all-hex-p (subseq str 1)))) ; remaining 6 are hex
 
   
 ;; ecl (Eye Color) - exactly one of: amb blu brn gry grn hzl oth.
 (setf ecl-values '("amb" "blu" "brn" "gry" "grn" "hzl" "oth"))
+  
 (defun valid-ecl-p (str)
   (if (member-if (lambda (s) (string= str s)) ecl-values) t nil))
 
@@ -193,6 +174,54 @@
 
 
 
+;;; Process file
+
+(defun process-file (filename)
+  (count-valid-records
+   (pairs-records<-text-records
+    (text-recs<-string
+     (read-file (filename))))))
+
+(defun count-valid-records (recs)
+  (apply #'+ (mapcar #'count-one-record recs)))
+
+(defun count-one-record (rec)
+  (let ((ht (make-hash-table :test 'equal)))
+    (mapcar (lambda (pair)
+	      (pop hash table)
+	      (if (and (all-required-fields-p ht)
+		       (all fields-valid-p ht))
+		  #| then |#  1
+		  #| else |#  0))
+	    pairs-rec)))
+
+
+
+;;; Used for part 1, which did not validate contents of fields
+  
+(defun k<-kvp (kvp)
+  "Splits the key off of a kv pair. For part one, we do not need the value."
+  (car (cl-ppcre:split ":" kvp)))
+
+(defun ks<-kvps (kvps)
+  "Wrapper."
+  (mapcar #'k<-kvp kvps))
+
+;; Function that munges a file into data for use by algorithm
+(defun list-of-ks<-file (filename)
+  "Input: file
+   Output: list of lists of keys"
+  (mapcar #'ks<-kvps (list-of-kvps<-records
+		      (records<-string
+		       (read-file filename)))))
+
+;;; Apply algorithm to file.
+
+(defun valid-record-count<-filename (fn)
+  (count t (mapcar #'all-required-fields-p (list-of-ks<-file fn))))
+
+
+  
 
 ;;; Test data
 
@@ -205,9 +234,8 @@ byr:1937 iyr:2017 cid:147 hgt:183cm")
 (valid-record-count<-filename test-file)
 
 
-
-
-
+  
+  
 ;;; DEPRECATED
 
 (defun ht-entries<-pairs (ht pairs)
@@ -221,3 +249,8 @@ byr:1937 iyr:2017 cid:147 hgt:183cm")
       (k v)
       (cl-ppcre:split #\: kvstring)
     (setf (gethash k ht) v)))
+
+
+(defun string-in-list-p (str lst)
+  "Helper function. Returns t if str is in list, otherwise nil."
+  (if (member-if (lambda (el) (string= el str)) lst) t))
