@@ -5,6 +5,8 @@
 (setf required-fields '("byr" "iyr" "eyr" "hgt" "hcl" "ecl" "pid"))
 (setf optional-field "cid")
 
+
+
 ;; Test data located below!
 
 
@@ -44,8 +46,8 @@
 (defun pairs-record<-text-record (textrecord)
   (pairs-record<-pair-strings (pair-strings<-text-record textrecord)))
 
-(defun pairs-records<text-records (trs)
-  (mapcar #'pairs-record<text-record trs))
+(defun pairs-records<-text-records (trs)
+  (mapcar #'pairs-record<-text-record trs))
 
 (defun populate-hash-table (ht rec)
   "Wrapper"
@@ -57,9 +59,28 @@
       kv-pair
     (setf (gethash k ht) v)))
 
+map over text records
+
+validate<-pair-record<-text-record
+
 
 
 ;;; Validate
+
+(defun count-valid-records<-file (filename)
+  (count-valid-text-records (text-recs<-string (read-file filename))))
+
+(defun count-valid-text-records (trs)
+  (count-if (lambda (result) (eq t result)) (validate-all-text-records trs)))
+
+(defun validate-all-text-records (trs)
+  (mapcar #'validate-text-record trs))
+
+(defun validate-text-record (tr)
+  (let ((ht (make-hash-table :test 'equal)))
+    (populate-hash-table ht (pairs-record<-text-record tr))
+    (and (all-required-fields-p ht)
+	 (all-fields-valid-p ht))))
 
 (defun all-required-fields-p (ht)
   "Checks to see if all required keys are present."
@@ -69,7 +90,7 @@
 	:do (setf valid (if (gethash rf ht) t nil))
 	:finally (return valid)))
 
-(defun validate (field ht)
+(defun validate-one-field (field ht)
   (let ((val (gethash field ht)))
     (cond ((equal field "byr") (valid-byr-p val))
 	  ((equal field "iyr") (valid-iyr-p val))
@@ -79,11 +100,11 @@
 	  ((equal field "ecl") (valid-ecl-p val))
 	  ((equal field "pid") (valid-pid-p val)))))
 
-(defun validate-all (ht)
+(defun all-fields-valid-p (ht)
   (loop :for field :in required-fields
 	:with valid = t
 	:while valid
-	:do (setf valid (validate field ht))
+	:do (setf valid (validate-one-field field ht))
 	:finally (return valid)))
 
 ;;; Field validation
@@ -111,8 +132,13 @@
   (<= (first range) (parse-integer str) (second range)))
 
 (defun valid-year-string-p (str range)
-  (and (all-decimals-p str)
-       (string-in-range (parse-integer str) range)))
+   (and (all-decimals-p str)
+	(string-in-range str range)))
+
+(defun string-in-list-p (str lst)
+  "Helper function. Returns t if str is in list, otherwise nil."
+  (if (member-if (lambda (el) (string= el str)) lst) t))
+
 
 ;; byr (Birth Year) - four digits; at least 1920 and at most 2002.
 (setf byr-range '(1920 2002))
@@ -145,7 +171,7 @@
 	       (number (subseq str 0 (- strlen 2)))) ; get possible number
 
 	   (and (string-in-list-p unit '("in" "cm")) ; validate unit
-		(all-decimals number) ; validate that this is a decimal number
+		(all-decimals-p number) ; validate that this is a decimal number
 		(let ((range (if (string= unit "cm") hgt-cm-range hgt-in-range))) ; select range to use
 
 		  (in-range (parse-integer number) range))))))) ; validate that number is in range
@@ -180,7 +206,7 @@
   (count-valid-records
    (pairs-records<-text-records
     (text-recs<-string
-     (read-file (filename))))))
+     (read-file filename)))))
 
 (defun count-valid-records (recs)
   (apply #'+ (mapcar #'count-one-record recs)))
@@ -188,12 +214,12 @@
 (defun count-one-record (rec)
   (let ((ht (make-hash-table :test 'equal)))
     (mapcar (lambda (pair)
-	      (pop hash table)
+	      (populate-hash-table ht rec)
 	      (if (and (all-required-fields-p ht)
-		       (all fields-valid-p ht))
+		       (all-fields-valid-p ht))
 		  #| then |#  1
 		  #| else |#  0))
-	    pairs-rec)))
+	    rec)))
 
 
 
@@ -231,7 +257,6 @@
 byr:1937 iyr:2017 cid:147 hgt:183cm")
 (setf test-file "~/adventofcode2020/day04/test-input.txt")
 
-(valid-record-count<-filename test-file)
 
 
   
@@ -251,6 +276,3 @@ byr:1937 iyr:2017 cid:147 hgt:183cm")
     (setf (gethash k ht) v)))
 
 
-(defun string-in-list-p (str lst)
-  "Helper function. Returns t if str is in list, otherwise nil."
-  (if (member-if (lambda (el) (string= el str)) lst) t))

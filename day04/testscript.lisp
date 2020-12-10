@@ -1,11 +1,11 @@
 (setf file-string (read-file "test-input.txt"))
-(setf recs (records<-string file-string))
+(setf recs (text-recs<-string file-string))
 (setf 1-rec (car recs))
-(setf 1-rec-kvp-strings (kvps<-record 1-rec))
-(setf 1-rec-pairs (pairs<-kvpstrings 1-rec-kvp-strings)))
+(setf 1-rec-kvp-strings (pair-strings<-text-record 1-rec))
+(setf 1-rec-pairs (pairs-record<-pair-strings 1-rec-kvp-strings)))
 (setf one-pair (car 1-rec-pairs))
 (setf test-ht (make-hash-table :test 'equal))
-(ht-entry<-pair test-ht one-pair)
+(ht-entry<-kv-pair test-ht one-pair)
 
 
 ;; read file into string
@@ -24,3 +24,4 @@
 
 ;;     if so, increment count
 ;;     empty hash-table
+
